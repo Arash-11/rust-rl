@@ -7,6 +7,11 @@ const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 const LIMIT_FPS: i32 = 20;
 
+const MAP_WIDTH: i32 = 80;
+const MAP_HEIGHT: i32 = 45;
+const COLOR_DARK_WALL: Color = Color{ r: 0, g: 0, b: 100 };
+const COLOR_DARK_GROUND: Color = Color{ r: 50, g: 50, b: 150 };
+
 struct Tcod {
     root: Root,
     con: Offscreen,
@@ -26,21 +31,40 @@ impl Object {
         Object { x, y, char, color }
     }
 
-    /// move by the given amount
+    /// Move by the given amount
     fn move_by(&mut self, dx: i32, dy: i32) {
         self.x += dx;
         self.y += dy;
     }
 
-    /// set the color and then draw the character that represents this object at its position
+    /// Set the color and then draw the character that represents this object at its position
     fn draw(&self, con: &mut dyn Console) {
         con.set_default_foreground(self.color);
         con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
     }
 
-    /// erase the character that represents this object
+    /// Erase the character that represents this object
     fn clear(&self, con: &mut dyn Console) {
         con.put_char(self.x, self.y, ' ', BackgroundFlag::None);
+    }
+}
+
+/// A tile of the map and its properties
+struct Tile {
+    blocked: bool,
+    block_sight: bool,
+}
+
+impl Tile {
+    fn new(blocked: bool, block_sight: Option<bool>) -> Tile {
+        // By default, if a tile is blocked, it also blocks sight
+        let mut sight_blocked = block_sight.is_some();
+
+        if block_sight.is_none() {
+            sight_blocked = blocked;
+        }
+
+        Tile { blocked, block_sight: sight_blocked }
     }
 }
 
