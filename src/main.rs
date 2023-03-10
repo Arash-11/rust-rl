@@ -32,9 +32,14 @@ impl Object {
     }
 
     /// Move by the given amount
-    fn move_by(&mut self, dx: i32, dy: i32) {
-        self.x += dx;
-        self.y += dy;
+    fn move_by(&mut self, dx: i32, dy: i32, game: &Game) {
+        let x = (self.x + dx) as usize;
+        let y = (self.y + dy) as usize;
+
+        if !game.map[x][y].blocked {
+            self.x += dx;
+            self.y += dy;
+        }
     }
 
     /// Set the color and then draw the character that represents this object at its position
@@ -49,31 +54,12 @@ impl Object {
     }
 }
 
-/// A tile of the map and its properties
-struct Tile {
-    blocked: bool,
-    block_sight: bool,
-}
-
-impl Tile {
-    fn new(blocked: bool, block_sight: Option<bool>) -> Tile {
-        // By default, if a tile is blocked, it also blocks sight
-        let mut sight_blocked = block_sight.is_some();
-
-        if block_sight.is_none() {
-            sight_blocked = blocked;
-        }
-
-        Tile { blocked, block_sight: sight_blocked }
-    }
-}
-
-fn handle_keys(object: &mut Object, key_code: KeyCode) -> bool {
+fn handle_keys(object: &mut Object, game: &Game, key_code: KeyCode) -> bool {
     match key_code {
-        KeyCode::Up => object.move_by(0, -1),
-        KeyCode::Down => object.move_by(0, 1),
-        KeyCode::Left => object.move_by(-1, 0),
-        KeyCode::Right => object.move_by(1, 0),
+        KeyCode::Up => object.move_by(0, -1, game),
+        KeyCode::Down => object.move_by(0, 1, game),
+        KeyCode::Left => object.move_by(-1, 0, game),
+        KeyCode::Right => object.move_by(1, 0, game),
 
         KeyCode::Escape => return true,
 
@@ -81,6 +67,56 @@ fn handle_keys(object: &mut Object, key_code: KeyCode) -> bool {
     };
 
     false
+}
+
+/// A tile of the map and its properties
+#[derive(Clone)]
+struct Tile {
+    blocked: bool,
+    block_sight: bool,
+}
+
+type Map = Vec<Vec<Tile>>;
+struct Game {
+    map: Map,
+}
+
+/// Fill map with "unblocked" tiles
+fn make_map() -> Map {
+    vec![vec![Tile{ blocked: false, block_sight: false }; MAP_HEIGHT as usize]; MAP_WIDTH as usize]
+}
+
+/// Draw all objects in the list
+fn render_all(tcod: &mut Tcod, game: &mut Game, objects: &[Object; 2]) {
+    for object in objects {
+        object.draw(&mut tcod.con);
+    }
+
+    game.map[30][22].blocked = true;
+    game.map[30][22].block_sight = true;
+    game.map[50][22].blocked = true;
+    game.map[50][22].block_sight = true;
+
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            let wall = game.map[x as usize][y as usize].block_sight;
+
+            match wall {
+                true => tcod.con.set_char_background(x, y, COLOR_DARK_WALL, BackgroundFlag::Set),
+                false => tcod.con.set_char_background(x, y, COLOR_DARK_GROUND, BackgroundFlag::Set),
+            }
+        }
+    }
+
+    blit(
+        &tcod.con,
+        (0, 0),
+        (SCREEN_WIDTH, SCREEN_HEIGHT),
+        &mut tcod.root,
+        (0, 0),
+        1.0,
+        1.0
+    );
 }
 
 fn main() {
@@ -102,22 +138,14 @@ fn main() {
     let npc = Object::new(SCREEN_WIDTH / 2 - 5, SCREEN_HEIGHT / 2, '@', YELLOW);
     let mut objects = [player, npc];
 
+    let mut game = Game {
+        map: make_map()
+    };
+
     while !tcod.root.window_closed() {
         tcod.con.clear();
 
-        for object in &objects {
-            object.draw(&mut tcod.con);
-        }
-
-        blit(
-            &tcod.con,
-            (0, 0),
-            (SCREEN_WIDTH, SCREEN_HEIGHT),
-            &mut tcod.root,
-            (0, 0),
-            1.0,
-            1.0
-        );
+        render_all(&mut tcod, &mut game, &objects);
 
         tcod.root.flush();
 
@@ -125,7 +153,7 @@ fn main() {
 
         if key.pressed {
             let player = &mut objects[0];
-            let exit = handle_keys(player, key.code);
+            let exit = handle_keys(player, &game, key.code);
             if exit {
                 break;
             }
